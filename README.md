@@ -4,6 +4,17 @@
 
 The Protection Markets Protocol is a set of smart contracts that enables wallet providers and protocol developers to create decentralized protection markets for loans. **The protocol itself does not provide CDP (Collateralized Debt Position) functionality, but is designed to be integrated directly by CDP or wallet platforms.** It introduces a market-driven approach to risk and pricing, allowing users to hedge against liquidation risk while enabling others to participate as challengers or underwriters.
 
+## Problems Faced by Borrowers
+
+Borrowers in DeFi lending protocols currently face several challenges:
+
+- **Liquidations**: If the value of a borrower's collateral falls below a required threshold, their position can be forcibly liquidated, often resulting in significant losses.
+- **Cascading Liquidations**: Large or sudden market movements can trigger multiple liquidations across protocols, amplifying volatility and losses for many users.
+- **No Protection or Insurance**: Most protocols do not offer built-in protection or insurance mechanisms, leaving borrowers exposed to market risks and sudden liquidations.
+- **Unpredictable Risk Pricing**: Risk is often priced inefficiently or statically, not reflecting real-time market conditions or user-specific risk profiles.
+
+The Protection Markets Protocol aims to address these issues by enabling market-driven protection and risk sharing for borrowers.
+
 ## How It Works
 
 1. **Loan Origination**: Users open a loan using a Collateralized Debt Position (CDP).
