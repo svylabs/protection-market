@@ -17,6 +17,7 @@ The Protection Markets Protocol is a set of smart contracts that enables wallet 
 - **User**: Opens a loan and optionally purchases protection.
 - **Challenger**: Bets on the liquidation of the loan within the protection period.
 - **Underwriter**: Provides additional collateral to protect the loan, betting against liquidation.
+- **Oracle**: Provides the protocol with Liquidation status for the loan.
 
 ## Settlement Logic
 
@@ -27,6 +28,15 @@ The Protection Markets Protocol is a set of smart contracts that enables wallet 
   - Underwriters win the bet.
   - Challengers lose their deposit, which is distributed to the underwriters.
 - If the combined collateral (user + underwriter) falls below a threshold set by external protocols, underwriters lose their collateral.
+
+## Liquidation Status through Oracle
+
+The settlement logic of the Protection Markets Protocol requires an Oracle to determine loan liquidation events and relevant market data. The protocol is designed to be flexible:
+
+- The CDP protocol itself can implement an Oracle interface and act as the Oracle.
+- Alternatively, a third-party Oracle that implements the required interface can be integrated and used for settlement.
+
+This ensures that the protocol can adapt to different ecosystems and data sources, while maintaining a clear and secure settlement process.
 
 ## Key Advantages
 
