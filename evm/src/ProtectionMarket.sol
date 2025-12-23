@@ -323,6 +323,56 @@ contract ProtectionMarket {
         revert("Nothing to withdraw");
     }
 
+    /// @notice Returns liquidation status, amount, and protection end for a protection market
+    function getProtectionStatus(
+        uint256 protectionId
+    )
+        external
+        view
+        returns (
+            bool settled,
+            bool liquidated,
+            uint256 liquidationAmount,
+            uint256 protectionEnd
+        )
+    {
+        Protection storage p = protections[protectionId];
+        return (
+            p.settled,
+            p.liquidated,
+            p.totalLiquidationAmount,
+            p.protectionEnd
+        );
+    }
+
+    /// @notice Claim liquidated collateral (protocol/adapter only, after liquidation)
+    function claimLiquidationCollateral(
+        uint256 protectionId,
+        address to
+    ) external {
+        Protection storage p = protections[protectionId];
+        require(p.settled, "Not settled");
+        require(p.liquidated, "Not liquidated");
+        require(p.totalLiquidationAmount > 0, "No collateral to claim");
+        require(
+            p.totalCollateral >= p.totalLiquidationAmount,
+            "Insufficient collateral"
+        );
+        p.totalCollateral -= p.totalLiquidationAmount;
+        _transfer(p.collateralToken, to, p.totalLiquidationAmount);
+    }
+
+    /// @notice Return unused collateral to protocol (after settlement, if not liquidated)
+    function returnUnusedCollateral(uint256 protectionId, address to) external {
+        Protection storage p = protections[protectionId];
+        require(p.settled, "Not settled");
+        require(!p.liquidated, "Only if not liquidated");
+        require(p.totalCollateral > 0, "No collateral to return");
+        uint256 amount = p.totalCollateral;
+        p.totalCollateral = 0;
+        _transfer(p.collateralToken, to, amount);
+    }
+
     function _transfer(address token, address to, uint256 amount) internal {
         if (amount == 0) return;
         if (token == address(0)) {

@@ -47,7 +47,7 @@ Protection takes the form of **underwriter-supplied collateral** that:
 - Is consumed first in liquidation
 - Directly improves loan health metrics
 
-Protection exists only while third-party collateral is present. There are **no insurance claims and no payouts to borrowers**.
+Protection exists only while third-party collateral is present. There are **no insurance claims and no payouts to borrowers**, and underwriter principal is not guaranteed.
 
 ---
 
@@ -64,7 +64,7 @@ Protection exists only while third-party collateral is present. There are **no i
 
 - Supplies collateral to back a specific loan
 - Earns borrower-paid fees for providing liquidation resistance
-- Bears the risk of collateral loss if liquidation occurs
+- Bears the risk of collateral loss due to liquidation **or adverse price movements**
 
 ### 3.3 Challenger
 
@@ -75,7 +75,7 @@ Protection exists only while third-party collateral is present. There are **no i
 
 ### 3.4 Oracle / Adapter
 
-- Reports liquidation outcomes from the underlying lending protocol
+- Reports liquidation outcomes and collateral accounting data
 - May be implemented natively by the CDP or by an external oracle / adapter
 
 ---
@@ -97,24 +97,23 @@ These integrators are responsible for:
 - Excluding protection collateral from borrower withdrawals
 - Enforcing junior priority of protection collateral in liquidation
 - Applying protection expiry and decay rules
-- Exposing liquidation outcome data to the protection protocol
+- Exposing liquidation and collateral consumption data
 
 The protocol itself only coordinates markets, capital flows, and settlement.
 
 ---
 
-### 4.2 Liquidation Data Requirements
+### 4.2 Liquidation and Accounting Data Requirements
 
-For correct settlement, integrations **must provide reliable liquidation data**, either directly from the lending protocol or via an oracle.
+For correct settlement, integrations **must provide reliable accounting data**, either directly from the lending protocol or via an oracle.
 
 Required data includes:
 
 - Whether a loan was liquidated or not
-- The timestamp or block number of liquidation
-- Whether the liquidation was partial or full
-- (Optional) Final debt repaid and collateral seized
-
-This data is used exclusively for settlement and fee accounting and does not affect the lending protocol’s native liquidation logic.
+- Timestamp or block number of liquidation (if any)
+- Whether liquidation was partial or full
+- Amount of protection collateral consumed
+- Remaining protection collateral value at expiry
 
 ---
 
@@ -122,14 +121,14 @@ This data is used exclusively for settlement and fee accounting and does not aff
 
 Supported integration approaches include:
 
-- **Native CDP integration**  
-  Lending protocols directly support protection collateral and expose liquidation events.
+- **Native CDP Integration**  
+  Lending protocols natively support protection collateral as a distinct collateral class and emit finalized liquidation events.
 
-- **Smart wallet integration**  
-  Wallets manage loan sub-accounts and surface liquidation outcomes to the protocol.
+- **Smart Wallet Integration**  
+  Wallets manage loan sub-accounts where protection collateral is visible to liquidation logic but inaccessible to the borrower.
 
-- **Adapter-based integration**  
-  External contracts index protocol events and relay finalized liquidation states.
+- **Adapter-Based Integration**  
+  External contracts index protocol events, apply protocol-specific rules, and relay finalized liquidation and accounting states.
 
 ---
 
@@ -153,7 +152,6 @@ Let:
 - `C_protect` = protection collateral
 - `h` = haircut on protection collateral
 - `D` = debt
-- `L` = liquidation ratio
 
 Effective collateralization ratio:
 
@@ -161,7 +159,7 @@ Effective collateralization ratio:
 ECR = (C_user + h × C_protect) / D
 ```
 
-Protection collateral contributes to loan health only while active.
+Protection collateral contributes to loan health only while active and remains subject to market price fluctuations.
 
 ---
 
@@ -180,12 +178,19 @@ Protection collateral contributes to loan health only while active.
 - Borrowers cannot withdraw protection collateral
 - Challengers may stake within defined entry windows
 
-### 7.3 Expiry
+### 7.3 Expiry and Post-Expiry Accounting
 
-- Protection collateral contribution decays during a final window
-- Integrator removes protection collateral from loan accounting
-- Underwriters reclaim unused collateral
-- Loan health reverts to borrower-only state
+- Protection contribution decays during a final window
+- Integrator removes protection collateral from loan health accounting
+- Underwriters reclaim remaining protection collateral, **if any**
+
+Even if the loan is not liquidated:
+
+- Protection collateral may be partially or fully consumed
+- Collateral value may decline due to adverse price movements
+- Underwriters bear this market risk while still earning borrower fees and challenger stakes
+
+Loan survival does not imply underwriter principal preservation.
 
 ---
 
@@ -205,23 +210,22 @@ Fees accrue linearly over the protection period.
 
 ### 9.1 No Liquidation
 
-If the loan remains solvent until protection expiry:
+If the loan is not liquidated:
 
-- Underwriters recover their collateral
+- Underwriters recover remaining protection collateral (if any)
 - Underwriters receive accrued borrower fees
 - Underwriters receive challenger stakes
 
-Challengers lose their stake.
-
 ---
 
-### 9.2 Liquidation During Protection
+### 9.2 Liquidation During or After Protection
 
-If liquidation occurs while protection is active:
+If liquidation occurs:
 
-1. Protection collateral is consumed first by the liquidation engine
-2. Borrower collateral is liquidated next
-3. Challenger reward capital is distributed according to market rules
+- Protection collateral is consumed according to liquidation rules
+- Borrower collateral is liquidated next
+- Underwriters may lose part or all of their collateral
+- Challenger reward capital is distributed according to market rules
 
 Borrowers receive no payout.
 
@@ -264,23 +268,23 @@ The protocol does not impose pricing models.
 
 - Lending protocols differ significantly in collateral accounting, withdrawal rules, and liquidation mechanics.
 - Supporting non-withdrawable, junior protection collateral requires explicit protocol or wallet-level cooperation.
-- Adapter-based integrations may introduce additional trust assumptions and maintenance overhead.
+- Adapter-based integrations may introduce additional trust assumptions.
 
-### 12.2 Oracle and Data Availability Risks
+### 12.2 Oracle and Accounting Risk
 
-- Settlement depends on accurate and timely liquidation data.
-- Oracle delays, reorgs, or inconsistent event definitions may lead to incorrect settlement.
-- Partial liquidations must be clearly defined to avoid ambiguity.
+- Accurate reporting of collateral consumption and remaining value is required.
+- Oracle delays, reorgs, or inconsistent liquidation definitions may lead to incorrect settlement.
+- Partial consumption without liquidation introduces additional accounting complexity.
 
 ### 12.3 Incentive and Market Risks
 
-- Underwriter participation depends on sufficient borrower fees and challenger activity.
+- Underwriters face both liquidation risk and market price risk.
 - Thin markets may result in mispriced protection.
-- Challenger manipulation or griefing must be mitigated through caps and entry rules.
+- Challenger manipulation must be mitigated through caps and timing rules.
 
 ### 12.4 Systemic Risk
 
-- During extreme volatility, correlated liquidations may overwhelm available protection capital.
+- Correlated price crashes may cause widespread protection losses.
 - Protection markets redistribute risk but do not eliminate systemic exposure.
 
 ---
@@ -288,9 +292,9 @@ The protocol does not impose pricing models.
 ## 13. Design Principles
 
 - Protection improves real loan health
+- Underwriters bear explicit market and liquidation risk
 - Fees follow capital at risk
 - No insurance claims
-- No pooled guarantees
 - Market-priced liquidation risk
 
 ---
@@ -300,10 +304,10 @@ The protocol does not impose pricing models.
 - Borrowers seeking temporary liquidation resistance
 - Wallets offering liquidation-resistant UX
 - Protocols outsourcing liquidation risk pricing
-- Risk dashboards surfacing market sentiment
+- Risk dashboards surfacing adversarial sentiment
 
 ---
 
 ## 15. Conclusion
 
-The Protection Markets Protocol introduces a new DeFi risk primitive: **market-priced, temporary collateral protection**. By separating protection markets from loan accounting and delegating detailed collateral management and liquidation reporting to wallets and CDPs, the protocol enables safer borrowing while preserving composability, transparency, and open risk pricing.
+The Protection Markets Protocol introduces a new DeFi risk primitive: **market-priced, temporary collateral protection**. By separating protection markets from loan accounting and supporting multiple integration models, the protocol enables safer borrowing while preserving composability, transparency, and open risk pricing.
