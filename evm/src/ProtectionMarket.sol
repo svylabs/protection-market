@@ -32,6 +32,7 @@ contract ProtectionMarket {
         address user;
         address loan;
         uint256 loanId;
+        address authorizedCollateralBufferManager;
         address collateralToken; // 0x0 for native, else ERC20
         address rewardToken; // ERC20 for reward, cannot be native
         uint256 protectionFee;
@@ -40,7 +41,7 @@ contract ProtectionMarket {
         bool settled;
         bool liquidated;
         uint256 totalLiquidationAmount;
-        uint256 totalCollateral;
+        uint256 totalCollateralBuffer;
         uint256 totalUnderwriterReward;
         uint256 totalChallengerStake;
         mapping(address => Underwriter) underwriters;
@@ -81,6 +82,7 @@ contract ProtectionMarket {
     function openProtection(
         address loan,
         uint256 loanId,
+        address authorizedCollateralBufferManager,
         uint256 duration,
         address oracle,
         address collateralToken,
@@ -114,6 +116,7 @@ contract ProtectionMarket {
         p.user = msg.sender;
         p.loan = loan;
         p.loanId = loanId;
+        p.authorizedCollateralBufferManager = authorizedCollateralBufferManager;
         p.collateralToken = collateralToken;
         p.rewardToken = rewardToken;
         p.protectionFee = protectionFee;
@@ -174,7 +177,7 @@ contract ProtectionMarket {
         u.collateral = collateral;
         u.reward = reward;
         u.withdrawn = false;
-        p.totalCollateral += collateral;
+        p.totalCollateralBuffer += collateral;
         p.totalUnderwriterReward += reward;
 
         emit UnderwriterJoined(protectionId, msg.sender, collateral, reward);
@@ -254,10 +257,10 @@ contract ProtectionMarket {
             if (!p.liquidated) {
                 // No liquidation: underwriter gets collateral + pro-rata protection fee
                 collateralAmount = u.collateral;
-                if (p.totalCollateral > 0) {
+                if (p.totalCollateralBuffer > 0) {
                     collateralAmount +=
                         (u.collateral * p.protectionFee) /
-                        p.totalCollateral;
+                        p.totalCollateralBuffer;
                 }
                 // Underwriter gets reward + pro-rata challenger stakes (reward pool)
                 rewardAmount = u.reward;
@@ -271,15 +274,15 @@ contract ProtectionMarket {
             } else {
                 // Liquidation: underwriter loses up to their share of the liquidated amount, all reward lost
                 uint256 loss = (u.collateral * p.totalLiquidationAmount) /
-                    p.totalCollateral;
+                    p.totalCollateralBuffer;
                 if (loss > u.collateral) {
                     loss = u.collateral;
                 }
                 collateralAmount = (u.collateral - loss);
-                if (p.totalCollateral > 0) {
+                if (p.totalCollateralBuffer > 0) {
                     collateralAmount +=
                         (u.collateral * p.protectionFee) /
-                        p.totalCollateral;
+                        p.totalCollateralBuffer;
                 }
                 // reward is always lost in liquidation
             }
@@ -351,14 +354,18 @@ contract ProtectionMarket {
         address to
     ) external {
         Protection storage p = protections[protectionId];
+        require(
+            msg.sender == p.authorizedCollateralBufferManager,
+            "Not authorized"
+        );
         require(p.settled, "Not settled");
         require(p.liquidated, "Not liquidated");
         require(p.totalLiquidationAmount > 0, "No collateral to claim");
         require(
-            p.totalCollateral >= p.totalLiquidationAmount,
+            p.totalCollateralBuffer >= p.totalLiquidationAmount,
             "Insufficient collateral"
         );
-        p.totalCollateral -= p.totalLiquidationAmount;
+        p.totalCollateralBuffer -= p.totalLiquidationAmount;
         _transfer(p.collateralToken, to, p.totalLiquidationAmount);
     }
 
@@ -367,9 +374,9 @@ contract ProtectionMarket {
         Protection storage p = protections[protectionId];
         require(p.settled, "Not settled");
         require(!p.liquidated, "Only if not liquidated");
-        require(p.totalCollateral > 0, "No collateral to return");
-        uint256 amount = p.totalCollateral;
-        p.totalCollateral = 0;
+        require(p.totalCollateralBuffer > 0, "No collateral to return");
+        uint256 amount = p.totalCollateralBuffer;
+        p.totalCollateralBuffer = 0;
         _transfer(p.collateralToken, to, amount);
     }
 
