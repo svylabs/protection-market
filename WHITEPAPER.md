@@ -1,10 +1,16 @@
-# Protection Markets Protocol
+# Liquidax: Liquidation Buffers and Protection Markets for On-Chain Loan Safety
+
+**Author:** Sridhar G <sridharg@protonmail.com>
+
+---
 
 ## Abstract
 
-The Protection Markets Protocol introduces a new DeFi primitive: a **market for temporary, third-party collateral that improves the health of on-chain loans**. Rather than providing insurance payouts after adverse events, the protocol enables _pre-emptive risk reduction_ by allowing external underwriters to supply collateral that directly increases a loan’s effective collateralization for a fixed period of time.
+**Liquidax** introduces a new DeFi risk primitive: **Liquidation Buffers**, supplied through open **Protection Markets**. Instead of compensating borrowers after liquidations, Liquidax enables _pre-emptive risk reduction_ by allowing third-party capital to temporarily reinforce the collateral backing of individual on-chain loans.
 
-Protection is priced by open market participation. Borrowers can purchase liquidation resistance, underwriters earn yield for supplying downside collateral, and challengers provide adversarial price discovery by staking against loan survival. The protocol is modular, non-custodial, and designed to integrate directly with lending protocols and wallets that manage loan accounting and liquidation logic.
+Through Liquidax, borrowers can purchase time-bound liquidation resistance, underwriters earn yield by supplying junior collateral buffers, and challengers provide adversarial price discovery by staking against loan survival. Protection is fully market-priced, non-custodial, and directly integrated into loan health and liquidation logic via protocols or smart wallets.
+
+Liquidax does not offer insurance, guarantees, or borrower payouts. It introduces a market for **temporary downside collateral**, transparently pricing liquidation risk while preserving protocol solvency and composability.
 
 ---
 
@@ -12,123 +18,117 @@ Protection is priced by open market participation. Borrowers can purchase liquid
 
 ### 1.1 Liquidation Risk in DeFi
 
-Collateralized lending protocols rely on automated liquidations to maintain solvency. While effective for protocol safety, liquidations impose significant costs on borrowers:
+Automated liquidations are foundational to DeFi lending protocols. While effective for protocol solvency, liquidations impose severe costs on borrowers:
 
-- Forced sale penalties
-- Slippage during volatile markets
+- Forced asset sales at a discount
+- Slippage during volatile market conditions
 - Cascading liquidations that amplify systemic stress
 
-Borrowers today have only two options:
+Borrowers today face a limited choice set:
 
-- Over-collateralize inefficiently
-- Monitor positions continuously and react manually
+- Maintain inefficiently high overcollateralization
+- Monitor positions continuously and intervene manually
 
-### 1.2 Limitations of Existing Solutions
+Neither option offers flexible, market-priced liquidation protection.
 
-Current DeFi risk solutions focus on _post-event compensation_ (insurance, hedging) or _protocol-level parameter tuning_. These approaches do not:
+### 1.2 Limitations of Existing Risk Solutions
+
+Most existing DeFi risk products focus on **post-event compensation** (insurance, options, hedging) or **protocol-wide parameter tuning**. These approaches do not:
 
 - Improve the real-time health of a specific loan
-- Allow market pricing of liquidation risk
-- Enable third parties to supply temporary downside capital
+- Allow open market pricing of liquidation risk
+- Enable third parties to supply temporary collateral buffers
 
-There is no native mechanism for borrowers to **buy additional collateral backing from the market**.
+There is no native primitive for borrowers to _buy additional collateral backing_ for a defined period of time.
 
 ---
 
-## 2. Core Concept
+## 2. Core Concept: Liquidation Buffers
 
-The Protection Markets Protocol enables a borrower to temporarily increase the safety of a loan by purchasing protection from an open market.
+Liquidax enables borrowers to attach **Liquidation Buffers** to existing loans.
 
-Protection takes the form of **underwriter-supplied collateral** that:
+A Liquidation Buffer consists of **underwriter-supplied collateral** that:
 
 - Is locked for a fixed duration
-- Is junior to borrower collateral
 - Is non-withdrawable by the borrower
-- Is consumed first in liquidation
-- Directly improves loan health metrics
+- Is junior to borrower collateral
+- Is consumed first during liquidation
+- Directly improves loan health metrics while active
 
-Protection exists only while third-party collateral is present. There are **no insurance claims and no payouts to borrowers**, and underwriter principal is not guaranteed.
+Liquidation Buffers exist only while third-party collateral remains locked. There are:
+
+- No insurance claims
+- No borrower payouts
+- No principal guarantees for underwriters
+
+Protection improves loan survivability by altering the collateral structure itself, not by compensating losses after liquidation.
 
 ---
 
-## 3. Roles
+## 3. Roles in the Liquidax Protection Market
 
 ### 3.1 Borrower
 
-- Opens a loan via a CDP or lending protocol
-- Purchases protection for a chosen duration
+- Opens a loan via a lending protocol or CDP
+- Purchases a Liquidation Buffer for a chosen duration
 - Pays a time-based protection fee
-- Benefits from improved liquidation resistance
+- Benefits from increased liquidation resistance
 
 ### 3.2 Underwriter
 
-- Supplies collateral to back a specific loan
-- Earns borrower-paid fees for providing liquidation resistance
-- Bears the risk of collateral loss due to liquidation **or adverse price movements**
+- Supplies collateral to form Liquidation Buffers for specific loans
+- Earns borrower-paid fees proportional to capital and time at risk
+- Bears explicit liquidation risk and market price risk
+
+Underwriters may lose some or all supplied collateral, even if the loan is not liquidated.
 
 ### 3.3 Challenger
 
-- Stakes capital against the loan surviving the protection period
-- Provides adversarial price discovery
+- Stakes capital against loan survival during the buffer period
+- Provides adversarial price discovery and risk signaling
 - Receives underwriter reward capital if liquidation occurs
 - Loses stake if the loan remains solvent
 
-### 3.4 Oracle / Adapter
+Challengers act as short sellers of loan survival.
 
-- Reports liquidation outcomes and collateral accounting data
-- May be implemented natively by the CDP or by an external oracle / adapter
+### 3.4 Oracle / Integration
+
+- Reports finalized liquidation outcomes and collateral accounting data
+- Implemented natively by the lending protocol or by a smart wallet managing the loan position
 
 ---
 
 ## 4. System Architecture
 
-### 4.1 Integration Assumptions
+### 4.1 Separation of Concerns
 
-The Protection Markets Protocol **does not implement lending logic or loan accounting**.
+Liquidax **does not implement lending, debt issuance, or liquidation logic**.
 
-Instead, it assumes integration with:
+Instead, it coordinates:
 
-- CDP / lending protocols, or
-- Smart wallets managing loan positions
+- Protection markets
+- Capital commitments
+- Fee flows
+- Settlement outcomes
 
-These integrators are responsible for:
+Loan accounting and liquidation enforcement remain the responsibility of integrated protocols or wallets.
 
-- Recognizing protection collateral as valid collateral
-- Excluding protection collateral from borrower withdrawals
-- Enforcing junior priority of protection collateral in liquidation
-- Applying protection expiry and decay rules
-- Exposing liquidation and collateral consumption data
+### 4.2 Integration Responsibilities
 
-The protocol itself only coordinates markets, capital flows, and settlement.
+Integrators must:
 
----
-
-### 4.2 Liquidation and Accounting Data Requirements
-
-For correct settlement, integrations **must provide reliable accounting data**, either directly from the lending protocol or via an oracle.
-
-Required data includes:
-
-- Whether a loan was liquidated or not
-- Timestamp or block number of liquidation (if any)
-- Whether liquidation was partial or full
-- Amount of protection collateral consumed
-- Remaining protection collateral value at expiry
-
----
+- Recognize Liquidation Buffers as valid, junior collateral
+- Exclude buffer collateral from borrower withdrawals
+- Enforce priority consumption of buffer collateral during liquidation
+- Apply buffer expiry and decay rules
+- Expose finalized liquidation and collateral consumption data
 
 ### 4.3 Integration Models
 
 Supported integration approaches include:
 
-- **Native CDP Integration**  
-  Lending protocols natively support protection collateral as a distinct collateral class and emit finalized liquidation events.
-
-- **Smart Wallet Integration**  
-  Wallets manage loan sub-accounts where protection collateral is visible to liquidation logic but inaccessible to the borrower.
-
-- **Adapter-Based Integration**  
-  External contracts index protocol events, apply protocol-specific rules, and relay finalized liquidation and accounting states.
+- **Native Protocol Integration** – Lending protocols natively support Liquidation Buffers as a distinct collateral class
+- **Smart Wallet Integration** – Wallets manage loan sub-accounts where buffers affect liquidation logic but remain inaccessible to borrowers
 
 ---
 
@@ -136,11 +136,11 @@ Supported integration approaches include:
 
 Upon liquidation:
 
-1. Protection collateral is consumed first
+1. Liquidation Buffer collateral is consumed first
 2. Borrower collateral is consumed next
 3. Any remaining shortfall becomes protocol bad debt
 
-This junior structure is essential for correct risk pricing.
+This junior structure is essential for correct market pricing of protection.
 
 ---
 
@@ -149,99 +149,81 @@ This junior structure is essential for correct risk pricing.
 Let:
 
 - `C_user` = borrower collateral
-- `C_protect` = protection collateral
-- `h` = haircut on protection collateral
-- `D` = debt
+- `C_buffer` = liquidation buffer collateral
+- `h` = haircut applied to buffer collateral
+- `D` = outstanding debt
 
 Effective collateralization ratio:
 
 ```
-ECR = (C_user + h × C_protect) / D
+ECR = (C_user + h × C_buffer) / D
 ```
 
-Protection collateral contributes to loan health only while active and remains subject to market price fluctuations.
+Buffer collateral contributes to loan health only while active and remains fully exposed to market price fluctuations.
 
 ---
 
-## 7. Protection Lifecycle
+## 7. Liquidation Buffer Lifecycle
 
 ### 7.1 Activation
 
-- Borrower selects duration and pays a time-based fee `F`
-- Underwriters supply collateral
-- Integrator updates loan accounting to include protection collateral
+- Borrower selects buffer size and duration
+- Borrower pays a time-based protection fee
+- Underwriters lock collateral
+- Integrator updates loan accounting
 
-### 7.2 During Protection
+### 7.2 Active Period
 
-- Protection collateral improves loan health
+- Buffer improves loan health
 - Underwriters cannot withdraw collateral
-- Borrowers cannot withdraw protection collateral
-- Challengers may stake within defined entry windows
+- Borrowers cannot access buffer collateral
+- Challengers may enter during defined windows
 
-### 7.3 Expiry and Post-Expiry Accounting
+### 7.3 Expiry and Decay
 
-- Protection contribution decays during a final window
-- Integrator removes protection collateral from loan health accounting
-- Underwriters reclaim remaining protection collateral, **if any**
+- Buffer contribution decays during a final window
+- Buffer collateral is removed from loan health metrics
+- Underwriters reclaim remaining collateral, if any
 
-Even if the loan is not liquidated:
-
-- Protection collateral may be partially or fully consumed
-- Collateral value may decline due to adverse price movements
-- Underwriters bear this market risk while still earning borrower fees and challenger stakes
-
-Loan survival does not imply underwriter principal preservation.
+Loan survival does **not** imply underwriter principal preservation.
 
 ---
 
 ## 8. Fee Allocation
 
-Borrower-paid protection fees `F` are distributed **exclusively to underwriters supplying protection collateral**.
+All borrower-paid protection fees are distributed exclusively to underwriters supplying Liquidation Buffers, pro-rata by capital and time.
 
-```
-All borrower fees → protection collateral providers (pro-rata)
-```
-
-Fees accrue linearly over the protection period.
+Fees accrue linearly over the buffer duration.
 
 ---
 
-## 9. Settlement Logic
+## 9. Settlement Outcomes
 
 ### 9.1 No Liquidation
 
-If the loan is not liquidated:
-
-- Underwriters recover remaining protection collateral (if any)
+- Underwriters recover remaining buffer collateral
 - Underwriters receive accrued borrower fees
 - Underwriters receive challenger stakes
 
----
+### 9.2 Liquidation Event
 
-### 9.2 Liquidation During or After Protection
-
-If liquidation occurs:
-
-- Protection collateral is consumed according to liquidation rules
+- Buffer collateral is consumed according to liquidation rules
 - Borrower collateral is liquidated next
 - Underwriters may lose part or all of their collateral
-- Challenger reward capital is distributed according to market rules
+- Challenger reward capital is distributed per market rules
 
-Borrowers receive no payout.
+Borrowers receive no payouts.
 
 ---
 
 ## 10. Challenger Economics
 
-Challengers act as **short sellers of loan survival**.
-
-- Downside: loss of stake if no liquidation
-- Upside: claim on underwriter reward capital if liquidation occurs
+Challengers provide negative risk exposure and adversarial pricing.
 
 To limit leverage:
 
 ```
-Total challenger stake ≤ β × underwriter reward capital
+Total Challenger Stake ≤ β × Underwriter Reward Capital
 ```
 
 Where `β` is protocol-defined.
@@ -254,55 +236,52 @@ Protection pricing emerges from open participation based on:
 
 - Loan health at entry
 - Asset volatility
-- Protection duration
-- Protection depth
+- Buffer duration and depth
 - Challenger pressure
 
-The protocol does not impose pricing models.
+Liquidax imposes no pricing models.
 
 ---
 
-## 12. Challenges and Open Risks
+## 12. Risks and Challenges
 
-### 12.1 Integration Challenges
+### 12.1 Integration Risk
 
-- Lending protocols differ significantly in collateral accounting, withdrawal rules, and liquidation mechanics.
-- Supporting non-withdrawable, junior protection collateral requires explicit protocol or wallet-level cooperation.
-- Adapter-based integrations may introduce additional trust assumptions.
+- Lending protocols vary significantly in accounting and liquidation mechanics
+- Integration complexity may introduce additional trust assumptions
 
 ### 12.2 Oracle and Accounting Risk
 
-- Accurate reporting of collateral consumption and remaining value is required.
-- Oracle delays, reorgs, or inconsistent liquidation definitions may lead to incorrect settlement.
-- Partial consumption without liquidation introduces additional accounting complexity.
+- Accurate reporting of partial consumption and liquidation timing is critical
+- Delays or inconsistencies may affect settlement correctness
 
-### 12.3 Incentive and Market Risks
+### 12.3 Incentive and Market Risk
 
-- Underwriters face both liquidation risk and market price risk.
-- Thin markets may result in mispriced protection.
-- Challenger manipulation must be mitigated through caps and timing rules.
+- Underwriters face asymmetric downside risk
+- Thin markets may misprice protection
+- Challenger manipulation must be mitigated via caps and timing rules
 
 ### 12.4 Systemic Risk
 
-- Correlated price crashes may cause widespread protection losses.
-- Protection markets redistribute risk but do not eliminate systemic exposure.
+- Correlated crashes may cause widespread buffer losses
+- Liquidax redistributes risk but does not eliminate systemic exposure
 
 ---
 
 ## 13. Design Principles
 
-- Protection improves real loan health
-- Underwriters bear explicit market and liquidation risk
+- Liquidation Buffers improve real loan health
+- Protection is market-priced and time-bound
+- Underwriters bear explicit downside risk
 - Fees follow capital at risk
-- No insurance claims
-- Market-priced liquidation risk
+- No insurance claims or guarantees
 
 ---
 
 ## 14. Use Cases
 
 - Borrowers seeking temporary liquidation resistance
-- Wallets offering liquidation-resistant UX
+- Smart wallets offering liquidation-buffered UX
 - Protocols outsourcing liquidation risk pricing
 - Risk dashboards surfacing adversarial sentiment
 
@@ -310,4 +289,4 @@ The protocol does not impose pricing models.
 
 ## 15. Conclusion
 
-The Protection Markets Protocol introduces a new DeFi risk primitive: **market-priced, temporary collateral protection**. By separating protection markets from loan accounting and supporting multiple integration models, the protocol enables safer borrowing while preserving composability, transparency, and open risk pricing.
+Liquidax introduces **Liquidation Buffers** and **Protection Markets** as a new on-chain risk primitive. By enabling market-priced, temporary collateral reinforcement without altering core lending logic, Liquidax offers safer borrowing, transparent risk transfer, and composable integration across the DeFi stack.
