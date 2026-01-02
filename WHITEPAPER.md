@@ -1,6 +1,6 @@
 # Liquidax: Liquidation Buffers and Protection Markets for On-Chain Loan Safety
 
-**Author:** Sridhar G <sridharg@protonmail.com>
+**Author:** Sridhar G (<sridharg@protonmail.com>)
 
 ---
 
@@ -10,7 +10,7 @@
 
 Through Liquidax, borrowers can purchase time-bound liquidation resistance, underwriters earn yield by supplying junior collateral buffers, and challengers provide adversarial price discovery by staking against loan survival. Protection is fully market-priced, non-custodial, and directly integrated into loan health and liquidation logic via protocols or smart wallets.
 
-Liquidax does not offer insurance, guarantees, or borrower payouts. It introduces a market for **temporary downside collateral**, transparently pricing liquidation risk while preserving protocol solvency and composability.
+Liquidax does **not** offer insurance, guarantees, or borrower payouts. It introduces a market for **temporary downside collateral**, transparently pricing liquidation risk while preserving protocol solvency and composability.
 
 ---
 
@@ -71,14 +71,16 @@ Protection improves loan survivability by altering the collateral structure itse
 
 - Opens a loan via a lending protocol or CDP
 - Purchases a Liquidation Buffer for a chosen duration
-- Pays a time-based protection fee
+- Pays a one-time, upfront protection fee
 - Benefits from increased liquidation resistance
 
 ### 3.2 Underwriter
 
 - Supplies collateral to form Liquidation Buffers for specific loans
-- Earns borrower-paid fees proportional to capital and time at risk
-- Bears explicit liquidation risk and market price risk
+- May enter at any time while the buffer is active
+- Cannot withdraw collateral until buffer expiry
+- Earns borrower-paid fees over time
+- Bears explicit liquidation and market price risk
 
 Underwriters may lose some or all supplied collateral, even if the loan is not liquidated.
 
@@ -86,15 +88,16 @@ Underwriters may lose some or all supplied collateral, even if the loan is not l
 
 - Stakes capital against loan survival during the buffer period
 - Provides adversarial price discovery and risk signaling
-- Receives underwriter reward capital if liquidation occurs
-- Loses stake if the loan remains solvent
+- Loses entire stake if the loan remains solvent
+- Receives escrowed underwriter reward capital if liquidation occurs
 
 Challengers act as short sellers of loan survival.
 
-### 3.4 Oracle / Integration
+### 3.4 Oracle / Integration Layer
 
-- Reports finalized liquidation outcomes and collateral accounting data
-- Implemented natively by the lending protocol or by a smart wallet managing the loan position
+- Reports finalized liquidation outcomes
+- Reports partial or full buffer collateral consumption
+- Implemented by lending protocols or smart wallets
 
 ---
 
@@ -104,31 +107,29 @@ Challengers act as short sellers of loan survival.
 
 Liquidax **does not implement lending, debt issuance, or liquidation logic**.
 
-Instead, it coordinates:
+It coordinates only:
 
 - Protection markets
 - Capital commitments
-- Fee flows
-- Settlement outcomes
+- Fee accrual and settlement
+- Outcome-based redistribution
 
-Loan accounting and liquidation enforcement remain the responsibility of integrated protocols or wallets.
+Loan accounting and liquidation enforcement remain with integrated protocols or wallets.
 
 ### 4.2 Integration Responsibilities
 
 Integrators must:
 
-- Recognize Liquidation Buffers as valid, junior collateral
-- Exclude buffer collateral from borrower withdrawals
-- Enforce priority consumption of buffer collateral during liquidation
-- Apply buffer expiry and decay rules
-- Expose finalized liquidation and collateral consumption data
+- Recognize Liquidation Buffers as valid junior collateral
+- Prevent borrower access to buffer collateral
+- Enforce priority consumption of buffer collateral
+- Apply buffer expiry and decay
+- Report liquidation outcomes and timing
 
 ### 4.3 Integration Models
 
-Supported integration approaches include:
-
-- **Native Protocol Integration** – Lending protocols natively support Liquidation Buffers as a distinct collateral class
-- **Smart Wallet Integration** – Wallets manage loan sub-accounts where buffers affect liquidation logic but remain inaccessible to borrowers
+- **Native Protocol Integration**
+- **Smart Wallet Integration** (loan sub-accounts)
 
 ---
 
@@ -138,9 +139,9 @@ Upon liquidation:
 
 1. Liquidation Buffer collateral is consumed first
 2. Borrower collateral is consumed next
-3. Any remaining shortfall becomes protocol bad debt
+3. Remaining shortfall becomes protocol bad debt
 
-This junior structure is essential for correct market pricing of protection.
+This junior structure is essential for correct market pricing.
 
 ---
 
@@ -150,16 +151,13 @@ Let:
 
 - `C_user` = borrower collateral
 - `C_buffer` = liquidation buffer collateral
-- `h` = haircut applied to buffer collateral
 - `D` = outstanding debt
 
-Effective collateralization ratio:
-
-```
-ECR = (C_user + h × C_buffer) / D
+```text
+ECR = (C_user + C_buffer) / D
 ```
 
-Buffer collateral contributes to loan health only while active and remains fully exposed to market price fluctuations.
+Liquidation Buffer collateral contributes **fully** to loan health metrics while active and remains fully exposed to market price changes.
 
 ---
 
@@ -167,79 +165,120 @@ Buffer collateral contributes to loan health only while active and remains fully
 
 ### 7.1 Activation
 
-- Borrower selects buffer size and duration
-- Borrower pays a time-based protection fee
-- Underwriters lock collateral
-- Integrator updates loan accounting
+- Borrower selects buffer size and fixed duration
+- Borrower pays a one-time protection fee upfront
+- Underwriters lock collateral as they enter
+- Buffer parameters are immutable per unit of collateral
+- Loan accounting is updated
 
 ### 7.2 Active Period
 
 - Buffer improves loan health
-- Underwriters cannot withdraw collateral
-- Borrowers cannot access buffer collateral
-- Challengers may enter during defined windows
+- Underwriters:
+  - Cannot withdraw collateral
+  - Accrue fees from time of entry onward
+- Borrowers:
+  - Cannot access buffer collateral
+  - Are protected from underwriter exit
+- Challengers may enter at any time during the active period
 
 ### 7.3 Expiry and Decay
 
 - Buffer contribution decays during a final window
-- Buffer collateral is removed from loan health metrics
-- Underwriters reclaim remaining collateral, if any
+- Buffer is progressively removed from loan health metrics
+- At expiry:
+  - Remaining collateral becomes withdrawable
+  - Final fee settlement occurs
 
 Loan survival does **not** imply underwriter principal preservation.
 
 ---
 
-## 8. Fee Allocation
+## 8. Fee Accrual and Distribution
 
-All borrower-paid protection fees are distributed exclusively to underwriters supplying Liquidation Buffers, pro-rata by capital and time.
+### 8.1 Time-Weighted Fee Accrual
 
-Fees accrue linearly over the buffer duration.
+Borrower-paid protection fees accrue linearly over time.
+
+Let:
+
+- `F_total` = total protection fee
+- `T` = buffer duration
+- `t` = elapsed active time
+
+```text
+F_accrued(t) = F_total × (t / T)
+```
+
+Unaccrued fees are not distributed.
+
+### 8.2 Collateral-Weighted Allocation
+
+For underwriter `i`:
+
+- `C_i` = supplied collateral
+- `τ_i` = time active
+
+```text
+W_i = C_i × τ_i
+```
+
+```text
+F_i = F_accrued × (W_i / Σ W)
+```
+
+Underwriters entering later receive no retroactive fee allocation and bear proportionally higher liquidation risk.
+
+### 8.3 Early Liquidation
+
+If liquidation occurs early:
+
+- Fee accrual stops immediately
+- Only accrued fees are distributed
+- Unaccrued fees are forfeited
+- Underwriters may lose collateral
+- Challenger rewards settle exclusively against escrowed underwriter reward capital
+
+There are no guaranteed returns.
 
 ---
 
-## 9. Settlement Outcomes
+## 9. Underwriter Commitment Model
 
-### 9.1 No Liquidation
+### 9.1 Open-Entry, Time-Locked Underwriting
 
-- Underwriters recover remaining buffer collateral
-- Underwriters receive accrued borrower fees
-- Underwriters receive challenger stakes
+- Underwriters may join at any time while the buffer is active
+- All supplied collateral is immediately locked
+- Withdrawals are prohibited until buffer expiry
+- Risk exposure begins immediately upon entry
 
-### 9.2 Liquidation Event
+### 9.2 Borrower Protection Guarantees
 
-- Buffer collateral is consumed according to liquidation rules
-- Borrower collateral is liquidated next
-- Underwriters may lose part or all of their collateral
-- Challenger reward capital is distributed per market rules
-
-Borrowers receive no payouts.
+- Active buffer collateral cannot be withdrawn early
+- Loan health cannot deteriorate due to underwriter exit
+- Protection remains deterministic once active
 
 ---
 
 ## 10. Challenger Economics
 
-Challengers provide negative risk exposure and adversarial pricing.
-
-To limit leverage:
-
-```
-Total Challenger Stake ≤ β × Underwriter Reward Capital
-```
-
-Where `β` is protocol-defined.
+- Challenger stakes are fully at risk
+- Challenger upside is strictly bounded by explicitly escrowed underwriter reward capital
+- No protocol-level caps are imposed beyond available rewards
+- Challenger participation provides adversarial signaling and late-stage price discovery
 
 ---
 
 ## 11. Market Pricing
 
-Protection pricing emerges from open participation based on:
+Protection pricing emerges from:
 
-- Loan health at entry
+- Loan health at activation
 - Asset volatility
-- Buffer duration and depth
-- Challenger pressure
+- Buffer depth and duration
+- Challenger participation
 
-Liquidax imposes no pricing models.
+Liquidax imposes no pricing model.
 
 ---
 
@@ -247,46 +286,35 @@ Liquidax imposes no pricing models.
 
 ### 12.1 Integration Risk
 
-- Lending protocols vary significantly in accounting and liquidation mechanics
-- Integration complexity may introduce additional trust assumptions
-
 ### 12.2 Oracle and Accounting Risk
-
-- Accurate reporting of partial consumption and liquidation timing is critical
-- Delays or inconsistencies may affect settlement correctness
 
 ### 12.3 Incentive and Market Risk
 
-- Underwriters face asymmetric downside risk
-- Thin markets may misprice protection
-- Challenger manipulation must be mitigated via caps and timing rules
-
 ### 12.4 Systemic Risk
 
-- Correlated crashes may cause widespread buffer losses
-- Liquidax redistributes risk but does not eliminate systemic exposure
+Liquidax redistributes risk; it does not eliminate it.
 
 ---
 
 ## 13. Design Principles
 
-- Liquidation Buffers improve real loan health
+- Buffers improve real loan health
 - Protection is market-priced and time-bound
 - Underwriters bear explicit downside risk
 - Fees follow capital at risk
-- No insurance claims or guarantees
+- No insurance semantics or guarantees
 
 ---
 
 ## 14. Use Cases
 
 - Borrowers seeking temporary liquidation resistance
-- Smart wallets offering liquidation-buffered UX
-- Protocols outsourcing liquidation risk pricing
-- Risk dashboards surfacing adversarial sentiment
+- Smart wallets with buffered UX
+- Protocols outsourcing risk pricing
+- Risk dashboards using challenger signals
 
 ---
 
 ## 15. Conclusion
 
-Liquidax introduces **Liquidation Buffers** and **Protection Markets** as a new on-chain risk primitive. By enabling market-priced, temporary collateral reinforcement without altering core lending logic, Liquidax offers safer borrowing, transparent risk transfer, and composable integration across the DeFi stack.
+Liquidax introduces **Liquidation Buffers** and **Protection Markets** as a new on-chain risk primitive. By enabling market-priced, time-bound collateral reinforcement without altering core lending logic, Liquidax improves borrower safety, enables explicit risk transfer, and remains fully composable across the DeFi stack.

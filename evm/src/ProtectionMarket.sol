@@ -22,6 +22,7 @@ contract ProtectionMarket {
     struct Underwriter {
         uint256 collateral; // U_collateral
         uint256 reward; // U_reward
+        uint256 joinTimestamp; // When underwriter joined
         bool withdrawn;
     }
     struct Challenger {
@@ -45,6 +46,8 @@ contract ProtectionMarket {
         uint256 totalUnderwriterReward;
         uint256 totalChallengerStake;
         mapping(address => Underwriter) underwriters;
+        address[] underwriterAddresses;
+        uint256 totalTimeWeightedCollateral; // Sum of (collateral * time at risk) for all underwriters
         mapping(address => Challenger) challengers;
     }
 
@@ -176,9 +179,16 @@ contract ProtectionMarket {
         require(u.collateral == 0 && u.reward == 0, "Already joined");
         u.collateral = collateral;
         u.reward = reward;
+        u.joinTimestamp = block.timestamp;
         u.withdrawn = false;
+        p.underwriterAddresses.push(msg.sender);
         p.totalCollateralBuffer += collateral;
         p.totalUnderwriterReward += reward;
+        // Incrementally update totalTimeWeightedCollateral for O(1) fee calculation
+        uint256 timeAtRisk = p.protectionEnd > u.joinTimestamp
+            ? (p.protectionEnd - u.joinTimestamp)
+            : 0;
+        p.totalTimeWeightedCollateral += collateral * timeAtRisk;
 
         emit UnderwriterJoined(protectionId, msg.sender, collateral, reward);
     }
@@ -219,6 +229,7 @@ contract ProtectionMarket {
         require(block.timestamp >= p.protectionEnd, "Protection not expired");
         require(!p.settled, "Already settled");
         p.settled = true;
+        // No need to calculate totalTimeWeightedCollateral here; it is updated incrementally in joinAsUnderwriter
         (
             bool liquidated,
             uint256 liquidationTime,
@@ -255,12 +266,15 @@ contract ProtectionMarket {
             uint256 collateralAmount = 0;
             uint256 rewardAmount = 0;
             if (!p.liquidated) {
-                // No liquidation: underwriter gets collateral + pro-rata protection fee
+                // No liquidation: underwriter gets collateral + pro-rata protection fee (time-weighted)
                 collateralAmount = u.collateral;
-                if (p.totalCollateralBuffer > 0) {
+                if (p.totalTimeWeightedCollateral > 0) {
+                    uint256 timeAtRisk = p.protectionEnd > u.joinTimestamp
+                        ? (p.protectionEnd - u.joinTimestamp)
+                        : 0;
                     collateralAmount +=
-                        (u.collateral * p.protectionFee) /
-                        p.totalCollateralBuffer;
+                        (p.protectionFee * u.collateral * timeAtRisk) /
+                        p.totalTimeWeightedCollateral;
                 }
                 // Underwriter gets reward + pro-rata challenger stakes (reward pool)
                 rewardAmount = u.reward;
@@ -279,10 +293,13 @@ contract ProtectionMarket {
                     loss = u.collateral;
                 }
                 collateralAmount = (u.collateral - loss);
-                if (p.totalCollateralBuffer > 0) {
+                if (p.totalTimeWeightedCollateral > 0) {
+                    uint256 timeAtRisk = p.protectionEnd > u.joinTimestamp
+                        ? (p.protectionEnd - u.joinTimestamp)
+                        : 0;
                     collateralAmount +=
-                        (u.collateral * p.protectionFee) /
-                        p.totalCollateralBuffer;
+                        (p.protectionFee * u.collateral * timeAtRisk) /
+                        p.totalTimeWeightedCollateral;
                 }
                 // reward is always lost in liquidation
             }
